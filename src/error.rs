@@ -1,19 +1,20 @@
-pub enum MfrError{
+#[derive(Debug)]
+pub enum MrfError{
     AsymmetricMatrix { row: usize, col: usize },
     DimensionMismatch { expected: usize, got: usize },
     NegativeWeight { row: usize, col: usize, value: f64 },
     EmptyStateSpace,
 }
 
-impl std::error::Error for MfrError {}
+impl std::error::Error for MrfError {}
 
-impl std::fmt::Display for MfrError {
+impl std::fmt::Display for MrfError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            AsymmetricMatrix => write!(f, "Asymmetric Matrix Error"),
-            DimensionMismatch => write!(f, "Dimension Mismatch Error"),
-            NegativeWeight => write!(f, "Negative Weight Error"),
-            EmptyStateSpace => write!(f, "Empty StateSpace Error"),
+            Self::AsymmetricMatrix { row, col } => write!(f, "Asymmetric Matrix Error"),
+            Self::DimensionMismatch { expected, got } => write!(f, "Dimension Mismatch Error"),
+            Self::NegativeWeight { row, col, value }=> write!(f, "Negative Weight Error"),
+            Self::EmptyStateSpace => write!(f, "Empty StateSpace Error"),
         }
     }
 }
