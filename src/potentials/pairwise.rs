@@ -12,10 +12,11 @@ pub struct MatrixPairwise {
 }
 
 impl<S: StateSpace> PairwisePotential<S> for MatrixPairwise {
+    #[inline]
     fn log_potential(&self, i: usize, j: usize, i_state: &S::State, j_state: &S::State) -> f64 {
-        self.log_potentials[self.num_labels * i + self.num_labels * j + i_state.as_index() + j_state.as_index()]
+        self.log_potentials[i_state.as_index() * self.num_labels + j_state.as_index()]
     }
-
+    #[inline]
     fn num_labels(&self) -> usize {
         self.num_labels
     }

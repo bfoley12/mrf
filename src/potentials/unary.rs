@@ -15,6 +15,7 @@ impl UniformUnary {
 }
 
 impl<S: StateSpace> UnaryPotential<S> for UniformUnary {
+    #[inline]
     fn log_potential(&self, _index: usize, state: &S::State) -> f64 {
         self.log_potentials[state.as_index()]
     }
