@@ -1,4 +1,4 @@
-use crate::state::StateSpace;
+use crate::state::{StateSpace, StateIndex};
 
 pub trait UnaryPotential<S: StateSpace> {
     fn log_potential(&self, index: usize, state: &S::State) -> f64;
