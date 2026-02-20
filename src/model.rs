@@ -1,6 +1,7 @@
 use crate::neighborhood::Neighborhood;
 use crate::state::StateSpace;
-use crate::potentials::{UnaryPotential, PairwisePotential}
+use crate::potentials::{UnaryPotential, PairwisePotential};
+
 pub struct MRF<S, N, U, P>
 where 
     S: StateSpace,
