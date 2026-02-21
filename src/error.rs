@@ -8,6 +8,7 @@ pub enum MrfError{
 
 impl std::error::Error for MrfError {}
 
+// TODO!: Implement informative erros
 impl std::fmt::Display for MrfError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
