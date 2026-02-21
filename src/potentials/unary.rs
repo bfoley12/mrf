@@ -4,6 +4,13 @@ pub trait UnaryPotential<S: StateSpace> {
     fn log_potential(&self, index: usize, state: &S::State) -> f64;
 }
 
+pub struct NoUnary {}
+
+impl<S: StateSpace> UnaryPotential<S> for NoUnary {
+    #[inline]
+    fn log_potential(&self, _index: usize, _state: &S::State) -> f64 { 0.0 }
+}
+
 pub struct UniformUnary {
     log_potentials: Vec<f64>,
 }
