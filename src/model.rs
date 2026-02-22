@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
+use rand::{Rng, RngExt};
 use crate::neighborhood::Neighborhood;
 use crate::state::StateSpace;
 use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential};
+use crate::samplers::Sampler;
 
 pub struct Missing;
 pub struct Provided;
@@ -88,10 +90,6 @@ pub struct MRF<S, N, U, P> {
     unary: U,
     pairwise: P,
     // Later can add adjacency layer for general Graphs
-    // TODO!:
-    // - Temperature (as field) and annealing
-    // - sampler (add as field and as struct in samplers folder)
-    // - look into Unary as Box<dyn 
 }
 
 impl MRF<(), (), NoUnary, ()> {
@@ -103,6 +101,34 @@ impl MRF<(), (), NoUnary, ()> {
             pairwise: None,
             _marker: PhantomData,
         }
+    }
+}
+
+impl<S, N, U, P> MRF<S, N, U, P> 
+where
+    S: StateSpace,
+    N: Neighborhood,
+    U: UnaryPotential<S>,
+    P: PairwisePotential<S>,
+{
+    pub fn random_init(&self, rng: &mut impl Rng) -> Vec<S::State> {
+        let states = self.state_space.states();
+        (0..self.neighborhood.num_nodes())
+            .map(|_| states[rng.random_range(0..states.len())].clone())
+            .collect()
+    }
+
+    pub fn generate(&self, sampler: &impl Sampler<S>, rng: &mut impl Rng) -> Vec<S::State> {
+        let mut field = self.random_init(rng);
+        sampler.sample(
+            &self.state_space,
+            &self.neighborhood,
+            &self.unary,
+            &self.pairwise,
+            &mut field,
+            rng
+        );
+        field
     }
 }
 
