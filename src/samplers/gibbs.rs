@@ -17,7 +17,6 @@ impl<A: Annealer> GibbsSampler<A> {
     pub fn new(sweeps: usize, annealer: A) -> Self {
         Self { sweeps, annealer }
     }
-    // TODO!: Consider making part of Sampler trait
     pub fn sweeps(&self) -> usize {
         self.sweeps
     }

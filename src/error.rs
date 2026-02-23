@@ -2,10 +2,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum MrfError{
-    #[error("Asymmetric matrix: differing values found at ({row}, {col}) and ({col}, {row})")]
+    #[error("Asymmetric Matrix: differing values found at ({row}, {col}) and ({col}, {row})")]
     AsymmetricMatrix { row: usize, col: usize },
     #[error("Dimension Mismatch: expected: {expected} got: {got}")]
     DimensionMismatch { expected: usize, got: usize },
+    #[error("Invalid Shape: expected {expected:?}, got {got:?}")]
+    InvalidShape {expected: (usize, usize), got: (usize, usize)},
     #[error("Negative Weight: negative weight found at ({row}, {col}) with value {value}")]
     NegativeWeight { row: usize, col: usize, value: f64 },
     #[error("Empty StateSpace: StateSpace must be defined over values")]

@@ -42,7 +42,7 @@ fn main() {
         .state_space(labels)
         .neighborhood(grid)
         .pairwise(pairwise)
-        .build();
+        .build().unwrap();
 
     let annealer = LinearAnnealer::new(2.0, 0.1, 1e-5);
     let sampler = GibbsSampler::new(sweeps, annealer);

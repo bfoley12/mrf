@@ -1,18 +1,29 @@
 use crate::state::{StateSpace, StateIndex};
 use crate::error::MrfError;
-
-pub trait PairwisePotential<S: StateSpace> {
-    fn log_potential(&self, i: usize, j: usize, i_state: &S::State, j_state: &S::State) -> f64;
-    fn num_labels(&self) -> usize;
-}
+use crate::potentials::{PairwisePotential, HasShape};
 
 pub struct CompositePairwise<S> {
     components: Vec<Box<dyn PairwisePotential<S>>>,
 }
 
-impl<S> CompositePairwise<S> {
+impl<S: StateSpace> CompositePairwise<S> {
     pub fn new(components: Vec<Box<dyn PairwisePotential<S>>>) -> Self {
         Self { components }
+    }
+    
+    pub fn validate(&self) -> Result<(), MrfError> {
+        if let Some(first) = self.components.first() {
+            let expected = first.num_labels();
+            for component in &self.components[1..] {
+                if component.num_labels() != expected {
+                    return Err(MrfError::DimensionMismatch {
+                        expected,
+                        got: component.num_labels(),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -24,14 +35,22 @@ impl<S> Default for CompositePairwise<S> {
 
 impl<S: StateSpace> CompositePairwise<S> {    
     // Returning Self to allow chaining
-    pub fn with(mut self, component: impl PairwisePotential<S> + 'static) -> Self{
-        // TODO!: Change out to throwing an error
-        if let Some(first) = self.components.first() {
-                assert_eq!(first.num_labels(), component.num_labels(), 
-                    "All pairwise components must have the same number of labels");
-            }
+    pub fn with(mut self, component: impl PairwisePotential<S> + 'static) -> Self {
         self.components.push(Box::new(component));
         self
+    }
+    // Defined again so users don't have to import the trait
+    pub fn shape(&self) -> (usize, usize) {
+        <Self as HasShape>::shape(self)
+    }
+}
+
+impl<S: StateSpace> HasShape for CompositePairwise<S> {
+    fn shape(&self) -> (usize, usize) {
+        if self.components.is_empty() {
+            return (0, 0)
+        }
+        self.components[0].shape()
     }
 }
 
@@ -49,6 +68,12 @@ impl<S: StateSpace> PairwisePotential<S> for CompositePairwise<S> {
 pub struct MatrixPairwise {
     log_potentials: Vec<f64>,
     num_labels: usize,
+}
+
+impl HasShape for MatrixPairwise {
+    fn shape(&self) -> (usize, usize) {
+        (self.log_potentials.len() / self.num_labels, self.num_labels)
+    }
 }
 
 impl<S: StateSpace> PairwisePotential<S> for MatrixPairwise {
@@ -98,6 +123,10 @@ impl MatrixPairwise {
         }
     
         Ok(Self { log_potentials, num_labels: n })
+    }
+    // Defined again so users don't have to import the trait
+    pub fn shape(&self) -> (usize, usize) {
+        <Self as HasShape>::shape(self)
     }
 }
 

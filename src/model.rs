@@ -4,6 +4,7 @@ use crate::neighborhood::Neighborhood;
 use crate::state::StateSpace;
 use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential, CompositePairwise};
 use crate::samplers::{GibbsSampler, Annealer};
+use crate::error::MrfError;
 
 pub struct Missing;
 pub struct Provided;
@@ -80,13 +81,20 @@ where
     N: Neighborhood,
     U: UnaryPotential<S>,
 {
-    pub fn build(self) -> MRF<S, N, U> {
-        MRF {
+    pub fn validate(&self) -> Result<(), MrfError> {
+        self.pairwise.validate()?;
+        self.unary.validate(self.pairwise.shape())?;
+        Ok(())
+    }
+    pub fn build(self) -> Result<MRF<S, N, U>, MrfError> {
+        self.validate()?;
+        
+        Ok(MRF {
             state_space: self.state_space.unwrap(),
             neighborhood: self.neighborhood.unwrap(),
             unary: self.unary,
             pairwise: self.pairwise,
-        }
+        })
     }
 }
 

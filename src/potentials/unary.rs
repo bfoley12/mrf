@@ -1,14 +1,25 @@
 use crate::state::{StateSpace, StateIndex};
-
-pub trait UnaryPotential<S: StateSpace> {
-    fn log_potential(&self, index: usize, state: &S::State) -> f64;
-}
+use crate::potentials::{UnaryPotential, HasShape};
+use crate::error::MrfError;
 
 pub struct NoUnary {}
 
 impl<S: StateSpace> UnaryPotential<S> for NoUnary {
     #[inline]
     fn log_potential(&self, _index: usize, _state: &S::State) -> f64 { 0.0 }
+    
+    #[inline]
+    fn validate(&self, _valid_shape: (usize, usize)) -> Result<(), MrfError> { Ok(()) }
+}
+
+impl NoUnary {
+    // Defined again so users don't have to import the trait
+    pub fn shape(&self) -> (usize, usize) { <Self as HasShape>::shape(self) }
+}
+
+impl HasShape for NoUnary {
+    #[inline]
+    fn shape(&self) -> (usize, usize) { (0, 0) }
 }
 
 pub struct UniformUnary {
@@ -23,15 +34,32 @@ impl UniformUnary {
     // TODO!: 
     // - Validate potentials
     // - Add raw_potential construction
+    #[inline]
     pub fn new(log_potentials: &[f64]) -> Self {
         Self { log_potentials: log_potentials.to_vec() }
     }
+    // Defined again so users don't have to import the trait
+    pub fn shape(&self) -> (usize, usize) {
+        <Self as HasShape>::shape(self)
+    }
+}
+
+impl HasShape for UniformUnary {
+    #[inline]
+    fn shape(&self) -> (usize, usize) { (self.log_potentials.len(), 1) }
 }
 
 impl<S: StateSpace> UnaryPotential<S> for UniformUnary {
     #[inline]
     fn log_potential(&self, _index: usize, state: &S::State) -> f64 {
         self.log_potentials[state.as_index()]
+    }
+    
+    fn validate(&self, valid_shape: (usize, usize)) -> Result<(), MrfError> {
+        if self.log_potentials.len() != valid_shape.0 {
+            return Err(MrfError::InvalidShape{expected: valid_shape, got: self.shape()})
+        }
+        Ok(())
     }
 }
 
@@ -45,11 +73,30 @@ impl SpatialUnary {
     pub fn new(log_potentials: &[f64], num_labels: usize) -> Self {
         Self { log_potentials: log_potentials.to_vec(), num_labels }
     }
+    // Defined again so users don't have to import the trait
+    pub fn shape(&self) -> (usize, usize) {
+        <Self as HasShape>::shape(self)
+    }
+}
+
+impl HasShape for SpatialUnary {
+    #[inline]
+    fn shape(&self) -> (usize, usize) {
+        (self.log_potentials.len() / self.num_labels, self.num_labels)
+    }
 }
 
 impl<S: StateSpace> UnaryPotential<S> for SpatialUnary {
+    #[inline]
     fn log_potential(&self, index: usize, state: &S::State) -> f64 {
         self.log_potentials[self.num_labels * index + state.as_index()]
+    }
+    
+    fn validate(&self, valid_shape: (usize, usize)) -> Result<(), MrfError> {
+        if self.shape() != valid_shape {
+            return Err(MrfError::InvalidShape{expected: valid_shape, got: self.shape()})
+        }
+        Ok(())
     }
 }
 
