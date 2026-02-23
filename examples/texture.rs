@@ -43,11 +43,12 @@ fn main() {
         .pairwise(pairwise)
         .build();
 
-    let sampler = GibbsSampler::new(sweeps, 2.0);
+    let annealer = LinearAnnealer::new(2.0, 0.1, 1e-5);
+    let sampler = GibbsSampler::new(sweeps, annealer);
     let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 
     // Initialize randomly
-    let mut field = mrf.random_init(&mut rng);
+    let mut field: Vec<Label> = mrf.random_init(&mut rng);
 
     // Create output directory
     std::fs::create_dir_all("frames").unwrap();
@@ -55,8 +56,9 @@ fn main() {
     // Save each frame
     save_frame(&field, width, height, "frames/frame_000.png");
 
-    for i in 0..sweeps {
+    for i in 0..sweeps{
         sampler.sweep(
+            sampler.annealer().temperature(i),
             mrf.state_space(),
             mrf.neighborhood(),
             mrf.unary(),

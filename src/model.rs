@@ -3,7 +3,7 @@ use rand::{Rng, RngExt};
 use crate::neighborhood::Neighborhood;
 use crate::state::StateSpace;
 use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential, CompositePairwise};
-use crate::samplers::Sampler;
+use crate::samplers::{GibbsSampler, Annealer};
 
 pub struct Missing;
 pub struct Provided;
@@ -127,16 +127,32 @@ where
             .collect()
     }
 
-    pub fn generate(&self, sampler: &impl Sampler<S>, rng: &mut impl Rng) -> Vec<S::State> {
+    pub fn generate<A: Annealer, R: Rng + RngExt>(
+        &self,
+        sampler: &GibbsSampler<A>,
+        rng: &mut R,
+    ) -> Vec<S::State> {
         let mut field = self.random_init(rng);
-        sampler.sample(
-            &self.state_space,
-            &self.neighborhood,
-            &self.unary,
-            &self.pairwise,
-            &mut field,
-            rng
-        );
+        for i in 0..sampler.sweeps() {
+            let temp = sampler.annealer().temperature(i);
+            sampler.sweep(temp, &self.state_space, &self.neighborhood, &self.unary, &self.pairwise, &mut field, rng);
+        }
+        field
+    }
+
+    pub fn generate_with_callback<A: Annealer, R: Rng + RngExt>(
+        &self,
+        sampler: &GibbsSampler<A>,
+        rng: &mut R,
+        mut on_sweep: impl FnMut(usize, &[S::State]),
+    ) -> Vec<S::State> {
+        let mut field = self.random_init(rng);
+        on_sweep(0, &field);
+        for i in 0..sampler.sweeps() {
+            let temp = sampler.annealer().temperature(i);
+            sampler.sweep(temp, &self.state_space, &self.neighborhood, &self.unary, &self.pairwise, &mut field, rng);
+            on_sweep(i + 1, &field);
+        }
         field
     }
     pub fn state_space(&self) -> &S { &self.state_space }

@@ -3,22 +3,30 @@ use crate::state::StateSpace;
 use crate::neighborhood::Neighborhood;
 use crate::potentials::UnaryPotential;
 use crate::potentials::PairwisePotential;
+use crate::samplers::Annealer;
 
 use rand::{Rng, RngExt};
 use rand::seq::SliceRandom;
 
-pub struct GibbsSampler {
-    pub sweeps: usize,
-    pub temperature: f64,
+pub struct GibbsSampler<A: Annealer> {
+    sweeps: usize,
+    annealer: A,
 }
 
-impl GibbsSampler {
-    pub fn new(sweeps: usize, temperature: f64) -> Self {
-        Self { sweeps, temperature }
+impl<A: Annealer> GibbsSampler<A> {
+    pub fn new(sweeps: usize, annealer: A) -> Self {
+        Self { sweeps, annealer }
     }
-    
+    // TODO!: Consider making part of Sampler trait
+    pub fn sweeps(&self) -> usize {
+        self.sweeps
+    }
+    pub fn annealer(&self) -> &impl Annealer {
+        &self.annealer
+    }
     pub fn sweep <S: StateSpace>(
         &self,
+        temperature: f64,
         state_space: &S,
         neighborhood: &impl Neighborhood,
         unary: &impl UnaryPotential<S>,
@@ -50,7 +58,7 @@ impl GibbsSampler {
             // Sample from conditional distribution
             let max_log = log_scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
             let weights: Vec<f64> = log_scores.iter()
-                .map(|&s| ((s - max_log) / self.temperature).exp())
+                .map(|&s| ((s - max_log) / temperature).exp())
                 .collect();
             let total: f64 = weights.iter().sum();
 
@@ -65,7 +73,7 @@ impl GibbsSampler {
         }
     }
 }
-impl<S: StateSpace> Sampler<S> for GibbsSampler {
+impl<S: StateSpace, A: Annealer> Sampler<S> for GibbsSampler<A> {
     fn sample<N, U, P, R> (
         &self,
         state_space: &S,
@@ -81,8 +89,8 @@ impl<S: StateSpace> Sampler<S> for GibbsSampler {
         P: PairwisePotential<S>,
         R: Rng + RngExt,
     {
-        for _sweep in 0..self.sweeps {
-            self.sweep(state_space, neighborhood, unary, pairwise, field, rng);
+        for sweep in 0..self.sweeps {
+            self.sweep(self.annealer.temperature(sweep), state_space, neighborhood, unary, pairwise, field, rng);
         }
     }
 }
