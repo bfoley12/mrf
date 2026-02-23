@@ -64,7 +64,7 @@ impl MatrixPairwise {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{DiscreteLabels, Label, StateSpace};
+    use crate::state::{DiscreteLabels, StateSpace};
 
     // --- Construction: valid inputs ---
 

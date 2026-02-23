@@ -130,6 +130,10 @@ where
         );
         field
     }
+    pub fn state_space(&self) -> &S { &self.state_space }
+    pub fn neighborhood(&self) -> &N { &self.neighborhood }
+    pub fn unary(&self) -> &U { &self.unary }
+    pub fn pairwise(&self) -> &P { &self.pairwise }
 }
 
 #[cfg(test)]

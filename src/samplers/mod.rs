@@ -3,19 +3,25 @@ use crate::neighborhood::Neighborhood;
 use crate::potentials::UnaryPotential;
 use crate::potentials::PairwisePotential;
 
-use rand::Rng;
+use rand::{Rng, RngExt};
 
 mod gibbs;
 pub use self::gibbs::GibbsSampler;
 
 pub trait Sampler<S: StateSpace> {
-    fn sample(
+    fn sample<N, U, P, R> (
         &self,
         state_space: &S,
-        neighborhood: &impl Neighborhood,
-        unary: &impl UnaryPotential<S>,
-        pairwise: &impl PairwisePotential<S>,
+        neighborhood: &N,
+        unary: &U,
+        pairwise: &P,
         field: &mut [S::State],
-        rng: &mut impl Rng,
-    );
+        rng: &mut R,
+    )
+    where 
+        N: Neighborhood,
+        U: UnaryPotential<S>,
+        P: PairwisePotential<S>,
+        R: Rng + RngExt
+    ;
 }
