@@ -2,17 +2,17 @@ use std::marker::PhantomData;
 use rand::{Rng, RngExt};
 use crate::neighborhood::Neighborhood;
 use crate::state::StateSpace;
-use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential};
+use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential, CompositePairwise};
 use crate::samplers::Sampler;
 
 pub struct Missing;
 pub struct Provided;
 
-pub struct MrfBuilder<S, N, U, P, HasState, HasNeighborhood, HasPairwise> {
+pub struct MrfBuilder<S, N, U, HasState, HasNeighborhood, HasPairwise> {
     state_space: Option<S>,
     neighborhood: Option<N>,
     unary: U,
-    pairwise: Option<P>,
+    pairwise: CompositePairwise<S>,
     // sampler
     // temperature
     // sweeps?
@@ -20,8 +20,8 @@ pub struct MrfBuilder<S, N, U, P, HasState, HasNeighborhood, HasPairwise> {
     _marker: PhantomData<(HasState, HasNeighborhood, HasPairwise)>
 }
 
-impl<S, N, U, P, HasState, HasNeighborhood, HasPairwise> MrfBuilder<S, N, U, P, HasState, HasNeighborhood, HasPairwise> {
-    pub fn unary<NewU>(self, u: NewU) -> MrfBuilder<S, N, NewU, P, HasState, HasNeighborhood, HasPairwise> {
+impl<S, N, U, HasState, HasNeighborhood, HasPairwise> MrfBuilder<S, N, U, HasState, HasNeighborhood, HasPairwise> {
+    pub fn unary<NewU>(self, u: NewU) -> MrfBuilder<S, N, NewU, HasState, HasNeighborhood, HasPairwise> {
         MrfBuilder {
             state_space: self.state_space,
             neighborhood: self.neighborhood,
@@ -31,20 +31,20 @@ impl<S, N, U, P, HasState, HasNeighborhood, HasPairwise> MrfBuilder<S, N, U, P, 
         }
     }
 }
-impl<S, N, U, P, HasNeighborhood, HasPairwise,> MrfBuilder<S, N, U, P, Missing, HasNeighborhood, HasPairwise> {
-    pub fn state_space<NewS: StateSpace>(self, s: NewS) -> MrfBuilder<NewS, N, U, P, Provided, HasNeighborhood, HasPairwise> {
+impl<S, N, U, HasNeighborhood, HasPairwise,> MrfBuilder<S, N, U, Missing, HasNeighborhood, HasPairwise> {
+    pub fn state_space<NewS: StateSpace>(self, s: NewS) -> MrfBuilder<NewS, N, U, Provided, HasNeighborhood, HasPairwise> {
         MrfBuilder {
             state_space: Some(s),
             neighborhood: self.neighborhood,
             unary: self.unary,
-            pairwise: self.pairwise,
+            pairwise: CompositePairwise::new(),
             _marker: PhantomData,
         }
     }
 }
 
-impl<S, N, U, P, HasState, HasPairwise,> MrfBuilder<S, N, U, P, HasState, Missing, HasPairwise> {
-    pub fn neighborhood<NewN: Neighborhood>(self, n: NewN) -> MrfBuilder<S, NewN, U, P, HasState, Provided, HasPairwise> {
+impl<S, N, U, HasState, HasPairwise,> MrfBuilder<S, N, U, HasState, Missing, HasPairwise> {
+    pub fn neighborhood<NewN: Neighborhood>(self, n: NewN) -> MrfBuilder<S, NewN, U, HasState, Provided, HasPairwise> {
         MrfBuilder {
             state_space: self.state_space,
             neighborhood: Some(n),
@@ -55,61 +55,70 @@ impl<S, N, U, P, HasState, HasPairwise,> MrfBuilder<S, N, U, P, HasState, Missin
     }
 }
 
-impl<S, N, U, P, HasState, HasNeighborhood> MrfBuilder<S, N, U, P, HasState, HasNeighborhood, Missing> {
-    pub fn pairwise<NewP>(self, p: NewP) -> MrfBuilder<S, N, U, NewP, HasState, HasNeighborhood, Provided> {
+impl<S: StateSpace, N, U, HasNeighborhood> MrfBuilder<S, N, U, Provided, HasNeighborhood, Missing> {
+    pub fn pairwise(self, p: impl PairwisePotential<S> + 'static) -> MrfBuilder<S, N, U, Provided, HasNeighborhood, Provided> {
         MrfBuilder {
             state_space: self.state_space,
             neighborhood: self.neighborhood,
             unary: self.unary,
-            pairwise: Some(p),
+            pairwise: self.pairwise.add(p),
+            _marker: PhantomData,
+        }
+    }
+}
+impl<S: StateSpace, N, U, HasNeighborhood> MrfBuilder<S, N, U, Provided, HasNeighborhood, Provided> {
+    pub fn pairwise(self, p: impl PairwisePotential<S> + 'static) -> MrfBuilder<S, N, U, Provided, HasNeighborhood, Provided> {
+        MrfBuilder {
+            state_space: self.state_space,
+            neighborhood: self.neighborhood,
+            unary: self.unary,
+            pairwise: self.pairwise.add(p),
             _marker: PhantomData,
         }
     }
 }
 
-impl<S, N, U, P> MrfBuilder<S, N, U, P, Provided, Provided, Provided>
+impl<S, N, U> MrfBuilder<S, N, U, Provided, Provided, Provided>
 where
     S: StateSpace,
     N: Neighborhood,
     U: UnaryPotential<S>,
-    P: PairwisePotential<S>,
 {
-    pub fn build(self) -> MRF<S, N, U, P> {
+    pub fn build(self) -> MRF<S, N, U> {
         MRF {
             state_space: self.state_space.unwrap(),
             neighborhood: self.neighborhood.unwrap(),
             unary: self.unary,
-            pairwise: self.pairwise.unwrap(),
+            pairwise: self.pairwise,
         }
     }
 }
 
-pub struct MRF<S, N, U, P> {
+pub struct MRF<S, N, U> {
     state_space: S,
     neighborhood: N,
     unary: U,
-    pairwise: P,
+    pairwise: CompositePairwise<S>,
     // Later can add adjacency layer for general Graphs
 }
 
-impl MRF<(), (), NoUnary, ()> {
-    pub fn builder() -> MrfBuilder<(), (), NoUnary, (), Missing, Missing, Missing> {
+impl MRF<(), (), NoUnary> {
+    pub fn builder() -> MrfBuilder<(), (), NoUnary, Missing, Missing, Missing> {
         MrfBuilder {
             state_space: None,
             neighborhood: None,
             unary: NoUnary{},
-            pairwise: None,
+            pairwise: CompositePairwise::new(),
             _marker: PhantomData,
         }
     }
 }
 
-impl<S, N, U, P> MRF<S, N, U, P> 
+impl<S, N, U> MRF<S, N, U> 
 where
     S: StateSpace,
     N: Neighborhood,
     U: UnaryPotential<S>,
-    P: PairwisePotential<S>,
 {
     pub fn random_init(&self, rng: &mut impl Rng) -> Vec<S::State> {
         let states = self.state_space.states();
@@ -133,7 +142,7 @@ where
     pub fn state_space(&self) -> &S { &self.state_space }
     pub fn neighborhood(&self) -> &N { &self.neighborhood }
     pub fn unary(&self) -> &U { &self.unary }
-    pub fn pairwise(&self) -> &P { &self.pairwise }
+    pub fn pairwise(&self) -> &CompositePairwise<S> { &self.pairwise }
 }
 
 #[cfg(test)]
@@ -177,20 +186,20 @@ mod tests {
     // --- Order doesn't matter ---
 
     #[test]
-    fn build_order_pairwise_state_neighborhood() {
+    fn build_order_state_pairwise_neighborhood() {
         let _mrf = MRF::builder()
-            .pairwise(test_pairwise())
             .state_space(test_labels())
+            .pairwise(test_pairwise())
             .neighborhood(test_grid())
             .build();
     }
 
     #[test]
-    fn build_order_neighborhood_pairwise_state() {
+    fn build_order_neighborhood_state_pairwise() {
         let _mrf = MRF::builder()
             .neighborhood(test_grid())
-            .pairwise(test_pairwise())
             .state_space(test_labels())
+            .pairwise(test_pairwise())
             .build();
     }
 
@@ -232,6 +241,17 @@ mod tests {
             .neighborhood(test_grid())
             .pairwise(test_pairwise())
             .unary(test_unary())
+            .build();
+    }
+    
+    #[test]
+    fn multiple_pairwise() {
+        let _mrf = MRF::builder()
+            .state_space(test_labels())
+            .neighborhood(test_grid())
+            .pairwise(test_pairwise())
+            .unary(test_unary())
+            .pairwise(test_pairwise())
             .build();
     }
 }

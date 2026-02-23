@@ -6,6 +6,40 @@ pub trait PairwisePotential<S: StateSpace> {
     fn num_labels(&self) -> usize;
 }
 
+pub struct CompositePairwise<S> {
+    components: Vec<Box<dyn PairwisePotential<S>>>,
+}
+
+impl<S> CompositePairwise<S> {
+    pub fn new() -> Self {
+        Self { components: Vec::new() }
+    }
+}
+
+impl<S: StateSpace> CompositePairwise<S> {    
+    // Returning Self to allow chaining
+    pub fn add(mut self, component: impl PairwisePotential<S> + 'static) -> Self{
+        // TODO!: Change out to throwing an error
+        if let Some(first) = self.components.first() {
+                assert_eq!(first.num_labels(), component.num_labels(), 
+                    "All pairwise components must have the same number of labels");
+            }
+        self.components.push(Box::new(component));
+        self
+    }
+}
+
+impl<S: StateSpace> PairwisePotential<S> for CompositePairwise<S> {
+    #[inline]
+    fn log_potential(&self, i: usize, j: usize, i_state: &S::State, j_state: &S::State) -> f64 {
+        self.components.iter().map(|c| c.log_potential(i, j, i_state, j_state)).sum()
+    }
+    #[inline]
+    fn num_labels(&self) -> usize {
+        self.components.iter().map(|c| c.num_labels()).max().unwrap_or(0)
+    }
+}
+
 pub struct MatrixPairwise {
     log_potentials: Vec<f64>,
     num_labels: usize,
