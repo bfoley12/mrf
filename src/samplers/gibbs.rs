@@ -24,6 +24,9 @@ impl<A: Annealer> GibbsSampler<A> {
     pub fn annealer(&self) -> &impl Annealer {
         &self.annealer
     }
+    
+    // Allow many arguments to reduce coupling to MRF models
+    #[allow(clippy::too_many_arguments)]
     pub fn sweep <S: StateSpace>(
         &self,
         temperature: f64,
@@ -32,7 +35,7 @@ impl<A: Annealer> GibbsSampler<A> {
         unary: &impl UnaryPotential<S>,
         pairwise: &impl PairwisePotential<S>,
         field: &mut [S::State],
-        rng: &mut (impl Rng + RngExt),
+        rng: &mut impl RngExt,
     ) {
         let states = state_space.states();
         let num_nodes = neighborhood.num_nodes();

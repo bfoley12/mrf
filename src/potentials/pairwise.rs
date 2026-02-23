@@ -11,14 +11,20 @@ pub struct CompositePairwise<S> {
 }
 
 impl<S> CompositePairwise<S> {
-    pub fn new() -> Self {
+    pub fn new(components: Vec<Box<dyn PairwisePotential<S>>>) -> Self {
+        Self { components }
+    }
+}
+
+impl<S> Default for CompositePairwise<S> {
+    fn default() -> Self {
         Self { components: Vec::new() }
     }
 }
 
 impl<S: StateSpace> CompositePairwise<S> {    
     // Returning Self to allow chaining
-    pub fn add(mut self, component: impl PairwisePotential<S> + 'static) -> Self{
+    pub fn with(mut self, component: impl PairwisePotential<S> + 'static) -> Self{
         // TODO!: Change out to throwing an error
         if let Some(first) = self.components.first() {
                 assert_eq!(first.num_labels(), component.num_labels(), 
@@ -104,7 +110,7 @@ mod tests {
 
     #[test]
     fn new_symmetric_matrix() {
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, 0.5],
             vec![0.5, 1.0],
         ]);
@@ -113,13 +119,13 @@ mod tests {
 
     #[test]
     fn new_single_label() {
-        let result = MatrixPairwise::new(&vec![vec![1.0]]);
+        let result = MatrixPairwise::new(&[vec![1.0]]);
         assert!(result.is_ok());
     }
 
     #[test]
     fn new_with_zeros() {
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, 0.0],
             vec![0.0, 1.0],
         ]);
@@ -128,7 +134,7 @@ mod tests {
 
     #[test]
     fn num_labels_matches() {
-        let mp = MatrixPairwise::new(&vec![
+        let mp = MatrixPairwise::new(&[
             vec![1.0, 0.5, 0.1],
             vec![0.5, 1.0, 0.3],
             vec![0.1, 0.3, 1.0],
@@ -140,13 +146,13 @@ mod tests {
 
     #[test]
     fn empty_matrix_fails() {
-        let result = MatrixPairwise::new(&vec![]);
+        let result = MatrixPairwise::new(&[]);
         assert!(matches!(result, Err(MrfError::EmptyStateSpace)));
     }
 
     #[test]
     fn non_square_matrix_fails() {
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, 0.5, 0.1],
             vec![0.5, 1.0],
         ]);
@@ -156,7 +162,7 @@ mod tests {
 
     #[test]
     fn negative_weight_fails() {
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, -0.5],
             vec![-0.5, 1.0],
         ]);
@@ -165,7 +171,7 @@ mod tests {
 
     #[test]
     fn asymmetric_matrix_fails() {
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, 0.8],
             vec![0.3, 1.0],
         ]);
@@ -175,7 +181,7 @@ mod tests {
     #[test]
     fn asymmetry_within_epsilon_passes() {
         let tiny = 1e-12;
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, 0.5 + tiny],
             vec![0.5, 1.0],
         ]);
@@ -184,7 +190,7 @@ mod tests {
 
     #[test]
     fn asymmetry_beyond_epsilon_fails() {
-        let result = MatrixPairwise::new(&vec![
+        let result = MatrixPairwise::new(&[
             vec![1.0, 0.5 + 1e-8],
             vec![0.5, 1.0],
         ]);
@@ -195,7 +201,7 @@ mod tests {
 
     #[test]
     fn log_potential_is_ln_of_input_plus_epsilon() {
-        let mp = MatrixPairwise::new(&vec![
+        let mp = MatrixPairwise::new(&[
             vec![1.0, 0.5],
             vec![0.5, 1.0],
         ]).unwrap();
@@ -217,7 +223,7 @@ mod tests {
 
     #[test]
     fn log_potential_symmetric() {
-        let mp = MatrixPairwise::new(&vec![
+        let mp = MatrixPairwise::new(&[
             vec![1.0, 0.3],
             vec![0.3, 1.0],
         ]).unwrap();
@@ -236,7 +242,7 @@ mod tests {
 
     #[test]
     fn log_potential_ignores_node_indices() {
-        let mp = MatrixPairwise::new(&vec![
+        let mp = MatrixPairwise::new(&[
             vec![1.0, 0.5],
             vec![0.5, 1.0],
         ]).unwrap();
@@ -255,7 +261,7 @@ mod tests {
 
     #[test]
     fn zero_weight_produces_very_negative_log() {
-        let mp = MatrixPairwise::new(&vec![
+        let mp = MatrixPairwise::new(&[
             vec![1.0, 0.0],
             vec![0.0, 1.0],
         ]).unwrap();
@@ -274,7 +280,7 @@ mod tests {
 
     #[test]
     fn diagonal_higher_than_off_diagonal() {
-        let mp = MatrixPairwise::new(&vec![
+        let mp = MatrixPairwise::new(&[
             vec![1.0, 0.1],
             vec![0.1, 1.0],
         ]).unwrap();

@@ -4,10 +4,10 @@ use image::RgbImage;
 
 fn label_to_color(label: &Label) -> [u8; 3] {
     match label.as_index() {
-        0 => [34, 139, 34],    // grass — green
-        1 => [139, 90, 43],    // dirt — brown
-        2 => [128, 128, 128],  // stone — gray
-        3 => [30, 90, 200],    // water — blue
+        0 => [30, 90, 200],    // water — blue
+        1 => [34, 139, 34],    // grass — green
+        2 => [139, 90, 43],    // dirt — brown
+        3 => [128, 128, 128],  // stone — gray
         _ => [0, 0, 0],
     }
 }
@@ -29,12 +29,13 @@ fn main() {
     let sweeps = 100;
 
     let labels = DiscreteLabels::new(4);
-    let grid = Grid2D::new(width, height, Connectivity::Eight);
-    let pairwise = MatrixPairwise::new(&vec![
-        vec![1.0, 0.3, 0.3, 0.0],
-        vec![0.3, 1.0, 0.2, 0.3],
-        vec![0.3, 0.2, 1.0, 0.3],
-        vec![0.0, 0.3, 0.3, 1.0],
+    let grid = Grid2D::new(width, height, Connectivity::Four);
+    let pairwise = MatrixPairwise::new(&[
+        //   W     F    D    R
+        vec![0.5, 0.3, 0.05, 0.05],
+        vec![0.3, 0.5, 0.3,  0.05], 
+        vec![0.05, 0.3, 0.5,  0.3],
+        vec![0.05, 0.05, 0.3,  0.5],
     ]).unwrap();
 
     let mrf = MRF::builder()

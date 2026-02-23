@@ -13,10 +13,6 @@ pub struct MrfBuilder<S, N, U, HasState, HasNeighborhood, HasPairwise> {
     neighborhood: Option<N>,
     unary: U,
     pairwise: CompositePairwise<S>,
-    // sampler
-    // temperature
-    // sweeps?
-
     _marker: PhantomData<(HasState, HasNeighborhood, HasPairwise)>
 }
 
@@ -37,7 +33,7 @@ impl<S, N, U, HasNeighborhood, HasPairwise,> MrfBuilder<S, N, U, Missing, HasNei
             state_space: Some(s),
             neighborhood: self.neighborhood,
             unary: self.unary,
-            pairwise: CompositePairwise::new(),
+            pairwise: CompositePairwise::default(),
             _marker: PhantomData,
         }
     }
@@ -61,7 +57,7 @@ impl<S: StateSpace, N, U, HasNeighborhood> MrfBuilder<S, N, U, Provided, HasNeig
             state_space: self.state_space,
             neighborhood: self.neighborhood,
             unary: self.unary,
-            pairwise: self.pairwise.add(p),
+            pairwise: self.pairwise.with(p),
             _marker: PhantomData,
         }
     }
@@ -72,7 +68,7 @@ impl<S: StateSpace, N, U, HasNeighborhood> MrfBuilder<S, N, U, Provided, HasNeig
             state_space: self.state_space,
             neighborhood: self.neighborhood,
             unary: self.unary,
-            pairwise: self.pairwise.add(p),
+            pairwise: self.pairwise.with(p),
             _marker: PhantomData,
         }
     }
@@ -108,7 +104,7 @@ impl MRF<(), (), NoUnary> {
             state_space: None,
             neighborhood: None,
             unary: NoUnary{},
-            pairwise: CompositePairwise::new(),
+            pairwise: CompositePairwise::default(),
             _marker: PhantomData,
         }
     }
@@ -127,7 +123,7 @@ where
             .collect()
     }
 
-    pub fn generate<A: Annealer, R: Rng + RngExt>(
+    pub fn generate<A: Annealer, R: RngExt>(
         &self,
         sampler: &GibbsSampler<A>,
         rng: &mut R,
@@ -140,7 +136,7 @@ where
         field
     }
 
-    pub fn generate_with_callback<A: Annealer, R: Rng + RngExt>(
+    pub fn generate_with_callback<A: Annealer, R: RngExt>(
         &self,
         sampler: &GibbsSampler<A>,
         rng: &mut R,
@@ -177,7 +173,7 @@ mod tests {
     }
 
     fn test_pairwise() -> MatrixPairwise {
-        MatrixPairwise::new(&vec![
+        MatrixPairwise::new(&[
             vec![1.0, 0.5, 0.1],
             vec![0.5, 1.0, 0.3],
             vec![0.1, 0.3, 1.0],
