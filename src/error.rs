@@ -1,21 +1,13 @@
-#[derive(Debug)]
+use thiserror::Error;
+
+#[derive(Error, Debug)]
 pub enum MrfError{
+    #[error("Asymmetric matrix: differing values found at ({row}, {col}) and ({col}, {row})")]
     AsymmetricMatrix { row: usize, col: usize },
+    #[error("Dimension Mismatch: expected: {expected} got: {got}")]
     DimensionMismatch { expected: usize, got: usize },
+    #[error("Negative Weight: negative weight found at ({row}, {col}) with value {value}")]
     NegativeWeight { row: usize, col: usize, value: f64 },
+    #[error("Empty StateSpace: StateSpace must be defined over values")]
     EmptyStateSpace,
-}
-
-impl std::error::Error for MrfError {}
-
-// TODO!: Implement informative erros
-impl std::fmt::Display for MrfError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::AsymmetricMatrix { row, col } => write!(f, "Asymmetric Matrix Error"),
-            Self::DimensionMismatch { expected, got } => write!(f, "Dimension Mismatch Error"),
-            Self::NegativeWeight { row, col, value }=> write!(f, "Negative Weight Error"),
-            Self::EmptyStateSpace => write!(f, "Empty StateSpace Error"),
-        }
-    }
 }
