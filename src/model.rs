@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
-use rand::{Rng, RngExt};
+use rand::{Rng, RngExt, SeedableRng};
+use rand::rngs::StdRng;
 use crate::neighborhood::Neighborhood;
 use crate::state::StateSpace;
 use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential, CompositePairwise};
@@ -118,6 +119,14 @@ impl MRF<(), (), NoUnary> {
     }
 }
 
+pub type SweepCallback<S> = Box<dyn FnMut(usize, &[<S as StateSpace>::State])>;
+
+pub struct GenerateOptions<S: StateSpace> {
+    pub init: Option<Vec<S::State>>,
+    pub seed: Option<u64>,
+    pub on_sweep: Option<SweepCallback<S>>
+}
+
 impl<S, N, U> MRF<S, N, U> 
 where
     S: StateSpace,
@@ -134,30 +143,31 @@ where
     pub fn generate<A: Annealer, R: RngExt>(
         &self,
         sampler: &GibbsSampler<A>,
-        rng: &mut R,
-    ) -> Vec<S::State> {
-        let mut field = self.random_init(rng);
+        mut opts: GenerateOptions<S>,
+    ) -> Result<Vec<S::State>, MrfError> {
+        let mut rng = match opts.seed {
+            Some(s) => StdRng::seed_from_u64(s),
+            None => StdRng::from_rng(&mut rand::rng()),
+        };
+        let mut field = match opts.init {
+            Some(f) => {
+                if f.len() != self.neighborhood.num_nodes() {
+                    return Err(MrfError::DimensionMismatch {
+                        expected: self.neighborhood.num_nodes(),
+                        got: f.len(),
+                    });
+                }
+                f
+            }
+            None => self.random_init(&mut rng),
+        };
+        if let Some(cb) = &mut opts.on_sweep { cb(0, &field); }
         for i in 0..sampler.sweeps() {
             let temp = sampler.annealer().temperature(i);
-            sampler.sweep(temp, &self.state_space, &self.neighborhood, &self.unary, &self.pairwise, &mut field, rng);
+            sampler.sweep(temp, &self.state_space, &self.neighborhood, &self.unary, &self.pairwise, &mut field, &mut rng);
+            if let Some(cb) = &mut opts.on_sweep { cb(i + 1, &field); }
         }
-        field
-    }
-
-    pub fn generate_with_callback<A: Annealer, R: RngExt>(
-        &self,
-        sampler: &GibbsSampler<A>,
-        rng: &mut R,
-        mut on_sweep: impl FnMut(usize, &[S::State]),
-    ) -> Vec<S::State> {
-        let mut field = self.random_init(rng);
-        on_sweep(0, &field);
-        for i in 0..sampler.sweeps() {
-            let temp = sampler.annealer().temperature(i);
-            sampler.sweep(temp, &self.state_space, &self.neighborhood, &self.unary, &self.pairwise, &mut field, rng);
-            on_sweep(i + 1, &field);
-        }
-        field
+        Ok(field)
     }
     pub fn state_space(&self) -> &S { &self.state_space }
     pub fn neighborhood(&self) -> &N { &self.neighborhood }
