@@ -29,7 +29,7 @@ fn main() {
     let sweeps = 100;
 
     let labels = DiscreteLabels::new(4);
-    let grid = Grid2D::new(width, height, Four);
+    let grid: Grid2D<f64> = Grid2D::new(width, height, Four);
     let pairwise = MatrixPairwise::new(&[
         //   W     F    D    R
         vec![0.6, 0.5, 0.05, 0.05],

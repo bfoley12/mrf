@@ -1,12 +1,12 @@
 #[allow(unused_imports)]
 use crate::graph::{Connectivity, Neighborhood, Graph, Four, Eight};
 
-pub struct Grid2D {
+pub struct Grid2D<T> {
     width: usize,
     height: usize,
-    graph: Graph,
+    graph: Graph<T>,
 }
-impl Grid2D {
+impl<T: Default> Grid2D<T> {
     pub fn new(width: usize, height: usize, connectivity: impl Connectivity) -> Self {
         let num_nodes = width * height;
         let mut graph = Graph::new(num_nodes);
@@ -43,8 +43,13 @@ impl Grid2D {
     pub fn coords(&self, index: usize) -> (usize, usize) {
         (index % self.width, index / self.width)
     }
+    
+    #[inline]
+    pub fn shape(&self) -> (usize, usize) {
+        (self.width, self.height)
+    }
 }
-impl Neighborhood for Grid2D {
+impl<T> Neighborhood for Grid2D<T> {
     fn neighbors(&self, index: usize) -> &[usize] {
         self.graph.neighbors(index)
     }
@@ -58,11 +63,11 @@ impl Neighborhood for Grid2D {
 mod tests {
     use super::*;
 
-    fn grid4(w: usize, h: usize) -> Grid2D {
+    fn grid4(w: usize, h: usize) -> Grid2D<()> {
         Grid2D::new(w, h, Four)
     }
 
-    fn grid8(w: usize, h: usize) -> Grid2D {
+    fn grid8(w: usize, h: usize) -> Grid2D<()> {
         Grid2D::new(w, h, Eight)
     }
 

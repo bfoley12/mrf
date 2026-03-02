@@ -186,7 +186,7 @@ mod tests {
         DiscreteLabels::new(3)
     }
 
-    fn test_grid() -> Grid2D {
+    fn test_grid() -> Grid2D<()> {
         Grid2D::new(4, 4, Four)
     }
 

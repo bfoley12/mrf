@@ -49,7 +49,7 @@ impl Clique {
     pub fn subsets(&self, size: usize) -> Vec<Clique> {
             let members = self.members();
             let mut result = Vec::new();
-            Self::combinations(&members, size, 0, &mut Vec::new(), &mut result);
+            Self::combinations(members, size, 0, &mut Vec::new(), &mut result);
             result
         }
     
