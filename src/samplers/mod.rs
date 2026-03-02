@@ -1,5 +1,5 @@
 use crate::state::StateSpace;
-use crate::neighborhood::Neighborhood;
+use crate::graph::Neighborhood;
 use crate::potentials::UnaryPotential;
 use crate::potentials::PairwisePotential;
 

@@ -1,20 +1,38 @@
-use smallvec::SmallVec;
-
-pub trait Neighborhood {
-    fn neighbors(&self, node: usize) -> SmallVec<[usize; 8]>;
-    fn num_nodes(&self) -> usize;
-}
-
-pub enum Connectivity { Four, Eight }
+#[allow(unused_imports)]
+use crate::graph::{Connectivity, Neighborhood, Graph, Four, Eight};
 
 pub struct Grid2D {
     width: usize,
     height: usize,
-    connectivity: Connectivity
+    graph: Graph,
 }
 impl Grid2D {
-    pub fn new(width: usize, height: usize, connectivity: Connectivity) -> Self {
-        Self { width, height, connectivity}
+    pub fn new(width: usize, height: usize, connectivity: impl Connectivity) -> Self {
+        let num_nodes = width * height;
+        let mut graph = Graph::new(num_nodes);
+
+        let offsets: &[(isize, isize)] = connectivity.offsets();
+
+        for y in 0..height {
+            for x in 0..width {
+                for &(dx, dy) in offsets {
+                    let nx = x as isize + dx;
+                    let ny = y as isize + dy;
+                    if nx >= 0 && nx < width as isize
+                        && ny >= 0 && ny < height as isize
+                    {
+                        // Only add one direction - add_edge adds both
+                        let from = y * width + x;
+                        let to = ny as usize * width + nx as usize;
+                        if from < to {
+                            graph.add_edge(from, to);
+                        }
+                    }
+                }
+            }
+        }
+
+        Self { width, height, graph }
     }
     #[inline]
     pub fn index(&self, x: usize, y: usize) -> usize {
@@ -27,36 +45,12 @@ impl Grid2D {
     }
 }
 impl Neighborhood for Grid2D {
-    fn neighbors(&self, index: usize) -> SmallVec<[usize; 8]> {
-        let x = index % self.width;
-        let y = index / self.width;
-        let mut result = SmallVec::new();
-    
-        let offsets: &[(isize, isize)] = match self.connectivity {
-            Connectivity::Four => &[
-                (0, -1), (-1, 0), (1, 0), (0, 1),
-            ],
-            Connectivity::Eight => &[
-                (-1, -1), (0, -1), (1, -1),
-                (-1,  0),          (1,  0),
-                (-1,  1), (0,  1), (1,  1),
-            ],
-        };
-    
-        for &(dx, dy) in offsets {
-            let nx = x as isize + dx;
-            let ny = y as isize + dy;
-            if nx >= 0 && nx < self.width as isize
-                && ny >= 0 && ny < self.height as isize
-            {
-                result.push(ny as usize * self.width + nx as usize);
-            }
-        }
-        result
+    fn neighbors(&self, index: usize) -> &[usize] {
+        self.graph.neighbors(index)
     }
     #[inline]
     fn num_nodes(&self) -> usize {
-        self.width * self.height
+        self.graph.num_nodes()
     }
 }
 
@@ -65,11 +59,11 @@ mod tests {
     use super::*;
 
     fn grid4(w: usize, h: usize) -> Grid2D {
-        Grid2D { width: w, height: h, connectivity: Connectivity::Four }
+        Grid2D::new(w, h, Four)
     }
 
     fn grid8(w: usize, h: usize) -> Grid2D {
-        Grid2D { width: w, height: h, connectivity: Connectivity::Eight }
+        Grid2D::new(w, h, Eight)
     }
 
     // --- index / coords round-trip ---
@@ -160,7 +154,7 @@ mod tests {
     #[test]
     fn four_interior_neighbors() {
         let grid = grid4(4, 4);
-        let mut n: Vec<usize> = grid.neighbors(5).into_vec();
+        let mut n: Vec<usize> = grid.neighbors(5).to_vec();
         n.sort();
         // (1,1) neighbors: up=(1,0)=1, left=(0,1)=4, right=(2,1)=6, down=(1,2)=9
         assert_eq!(n, vec![1, 4, 6, 9]);
@@ -169,7 +163,7 @@ mod tests {
     #[test]
     fn eight_interior_correct_neighbors() {
         let grid = grid8(4, 4);
-        let mut n: Vec<usize> = grid.neighbors(5).into_vec();
+        let mut n: Vec<usize> = grid.neighbors(5).to_vec();
         n.sort();
         // (1,1) eight neighbors:
         // (0,0)=0, (1,0)=1, (2,0)=2, (0,1)=4, (2,1)=6, (0,2)=8, (1,2)=9, (2,2)=10
@@ -179,7 +173,7 @@ mod tests {
     #[test]
     fn four_top_left_corner_neighbors() {
         let grid = grid4(4, 4);
-        let mut n: Vec<usize> = grid.neighbors(0).into_vec();
+        let mut n: Vec<usize> = grid.neighbors(0).to_vec();
         n.sort();
         // (0,0) neighbors: right=(1,0)=1, down=(0,1)=4
         assert_eq!(n, vec![1, 4]);
@@ -188,7 +182,7 @@ mod tests {
     #[test]
     fn eight_top_left_corner_neighbors() {
         let grid = grid8(4, 4);
-        let mut n: Vec<usize> = grid.neighbors(0).into_vec();
+        let mut n: Vec<usize> = grid.neighbors(0).to_vec();
         n.sort();
         // (0,0) neighbors: right=(1,0)=1, down=(0,1)=4, diag=(1,1)=5
         assert_eq!(n, vec![1, 4, 5]);

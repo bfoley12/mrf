@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use rand::{Rng, RngExt, SeedableRng};
 use rand::rngs::StdRng;
-use crate::neighborhood::Neighborhood;
+use crate::graph::Neighborhood;
 use crate::state::StateSpace;
 use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential, CompositePairwise};
 use crate::samplers::{GibbsSampler, Annealer};
@@ -104,7 +104,7 @@ pub struct MRF<S, N, U> {
     neighborhood: N,
     unary: U,
     pairwise: CompositePairwise<S>,
-    // Later can add adjacency layer for general Graphs
+    // TODO!: Add Adjacency so we can generalize to a Graph instead of a Grid
 }
 
 impl MRF<(), (), NoUnary> {
@@ -178,7 +178,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::neighborhood::{Grid2D, Connectivity};
+    use crate::graph::{Grid2D, Four};
     use crate::state::DiscreteLabels;
     use crate::potentials::{UniformUnary, MatrixPairwise};
 
@@ -187,7 +187,7 @@ mod tests {
     }
 
     fn test_grid() -> Grid2D {
-        Grid2D::new(4, 4, Connectivity::Four)
+        Grid2D::new(4, 4, Four)
     }
 
     fn test_pairwise() -> MatrixPairwise {

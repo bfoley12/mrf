@@ -29,13 +29,13 @@ fn main() {
     let sweeps = 100;
 
     let labels = DiscreteLabels::new(4);
-    let grid = Grid2D::new(width, height, Connectivity::Four);
+    let grid = Grid2D::new(width, height, Four);
     let pairwise = MatrixPairwise::new(&[
         //   W     F    D    R
-        vec![0.5, 0.3, 0.05, 0.05],
-        vec![0.3, 0.5, 0.3,  0.05], 
-        vec![0.05, 0.3, 0.5,  0.3],
-        vec![0.05, 0.05, 0.3,  0.5],
+        vec![0.6, 0.5, 0.05, 0.05],
+        vec![0.5, 0.6, 0.4,  0.05], 
+        vec![0.05, 0.4, 0.6,  0.5],
+        vec![0.05, 0.05, 0.5,  0.6],
     ]).unwrap();
 
     let mrf = MRF::builder()
@@ -44,7 +44,7 @@ fn main() {
         .pairwise(pairwise)
         .build().unwrap();
 
-    let annealer = LinearAnnealer::new(2.0, 0.1, 1e-5);
+    let annealer = LinearAnnealer::new(5.0, 0.1, 0.25);
     let sampler = GibbsSampler::new(sweeps, annealer);
     let mut rng = rand::rngs::StdRng::seed_from_u64(42);
 

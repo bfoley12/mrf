@@ -1,11 +1,11 @@
-mod neighborhood;
+mod graph;
 mod model;
 mod state;
 mod potentials;
 mod error;
 mod samplers;
 
-pub use neighborhood::*;
+pub use graph::*;
 pub use model::*;
 pub use state::*;
 pub use potentials::*;
