@@ -1,34 +1,42 @@
-use crate::state::StateSpace;
-use crate::graph::Neighborhood;
-use crate::potentials::UnaryPotential;
-use crate::potentials::PairwisePotential;
-
-use rand::{Rng, RngExt};
+use crate::MRF;
+use crate::error::MrfError;
+use crate::state::Label;
+use rand::Rng;
 
 mod gibbs;
 mod annealers;
-pub use self::gibbs::GibbsSampler;
 pub use self::annealers::{ConstantAnnealer, LinearAnnealer, ExponentialAnnealer, LogarithmicAnnealer};
+pub use self::gibbs::{GibbsSampler, RunOptions};
 
-pub trait Sampler<S: StateSpace> {
-    fn sample<N, U, P, R> (
+pub trait Sampler<L: Label> {
+    fn run(
         &self,
-        state_space: &S,
-        neighborhood: &N,
-        unary: &U,
-        pairwise: &P,
-        field: &mut [S::State],
-        rng: &mut R,
-    )
-    where 
-        N: Neighborhood,
-        U: UnaryPotential<S>,
-        P: PairwisePotential<S>,
-        R: Rng + RngExt
-    ;
+        mrf: &mut MRF<L>,
+        proposal: &impl Proposal<L>,
+        opts: RunOptions,
+    ) -> Result<(), MrfError>;
 }
 
 pub trait Annealer {
     fn temperature(&self, sweep: usize) -> f64;
 }
 
+pub trait Proposal<L: Label> {
+    fn candidates(&self, current: &L, rng: &mut impl Rng) -> Vec<L>;
+}
+
+/// Enumerates all discrete labels — use with usize, Label(usize), etc.
+pub struct DiscreteProposal {
+    num_labels: usize,
+}
+
+impl DiscreteProposal {
+    pub fn new(num_labels: usize) -> Self {
+        Self { num_labels }
+    }
+}
+impl Proposal<usize> for DiscreteProposal {
+    fn candidates(&self, _current: &usize, _rng: &mut impl Rng) -> Vec<usize> {
+        (0..self.num_labels).collect()
+    }
+}

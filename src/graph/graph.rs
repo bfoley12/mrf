@@ -5,6 +5,50 @@ use crate::graph::clique::Clique;
 pub struct Graph<T> {
     nodes: Vec<Node<T>>,
     maximal_cliques: Vec<Clique>,
+    node_cliques: Vec<Vec<(usize, usize)>>,
+}
+
+impl<T> Graph<T> {
+    /// Generates all sub-cliques of a given size from maximal cliques
+    pub fn cliques_of_order(&self, order: usize) -> Vec<Clique> {
+        let mut result = Vec::new();
+        let mut seen = std::collections::HashSet::<Vec<usize>>::new();
+        for mc in &self.maximal_cliques {
+            if mc.len() >= order {
+                for sub in mc.subsets(order) {
+                    if seen.insert(sub.members().to_vec()) {
+                        result.push(sub);
+                    }
+                }
+            }
+        }
+        result
+    }
+
+    pub fn cliques_containing(&self, node: usize, order: Option<usize>) -> Vec<&Clique> {
+        self.node_cliques[node].iter()
+            .filter(|(_, o)| order.map_or(true, |want| *o == want))
+            .map(|(ci, _)| &self.maximal_cliques[*ci])
+            .collect()
+    }
+    pub fn for_cliques_containing(
+        &self, 
+        node: usize, 
+        order: Option<usize>, 
+        mut f: impl FnMut(&Clique),
+    ) {
+        for &(ci, o) in &self.node_cliques[node] {
+            if order.map_or(true, |want| o == want) {
+                f(&self.maximal_cliques[ci]);
+            }
+        }
+    }
+    pub fn get_node(&self, index: usize) -> &Node<T> {
+        &self.nodes[index]
+    }
+    pub fn get_node_mut(&mut self, index: usize) -> &mut Node<T> {
+        &mut self.nodes[index]
+    }
 }
 
 impl<T: Default> Graph<T> {
@@ -16,11 +60,8 @@ impl<T: Default> Graph<T> {
         Self {
             nodes,
             maximal_cliques: Vec::new(),
+            node_cliques: vec![Vec::new(); num_nodes],
         }
-    }
-
-    pub fn num_nodes(&self) -> usize {
-        self.nodes.len()
     }
 
     pub fn add_edge(&mut self, a: usize, b: usize) {
@@ -34,6 +75,15 @@ impl<T: Default> Graph<T> {
         let mut results = Vec::new();
         Self::bron_kerbosch(&self.nodes, Vec::new(), all, Vec::new(), &mut results);
         self.maximal_cliques = results;
+    
+        // Precompute per-node lookup
+        self.node_cliques = vec![Vec::new(); self.nodes.len()];
+        for (ci, clique) in self.maximal_cliques.iter().enumerate() {
+            let order = clique.len();
+            for &node in clique.members() {
+                self.node_cliques[node].push((ci, order));
+            }
+        }
     }
 
     fn bron_kerbosch(
@@ -80,34 +130,6 @@ impl<T: Default> Graph<T> {
         &self.maximal_cliques
     }
 
-    /// Generates all sub-cliques of a given size from maximal cliques
-    pub fn cliques_of_order(&self, order: usize) -> Vec<Clique> {
-        let mut result = Vec::new();
-        let mut seen = std::collections::HashSet::<Vec<usize>>::new();
-        for mc in &self.maximal_cliques {
-            if mc.len() >= order {
-                for sub in mc.subsets(order) {
-                    if seen.insert(sub.members().to_vec()) {
-                        result.push(sub);
-                    }
-                }
-            }
-        }
-        result
-    }
-
-    pub fn cliques_containing(&self, node: usize, order: Option<usize>) -> Vec<Clique> {
-        match order {
-            Some(o) => self.cliques_of_order(o)
-                .into_iter()
-                .filter(|c| c.contains(node))
-                .collect(),
-            None => self.maximal_cliques.iter()
-                .filter(|c| c.contains(node))
-                .cloned()
-                .collect(),
-        }
-    }
 }
 
 impl<T> Neighborhood for Graph<T> {

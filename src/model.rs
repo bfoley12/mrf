@@ -1,287 +1,350 @@
 use std::marker::PhantomData;
-use rand::{Rng, RngExt, SeedableRng};
-use rand::rngs::StdRng;
 use crate::graph::Neighborhood;
-use crate::state::StateSpace;
-use crate::potentials::{NoUnary, UnaryPotential, PairwisePotential, CompositePairwise};
-use crate::samplers::{GibbsSampler, Annealer};
+use crate::graph::Graph;
+use crate::state::Label;
+use crate::potentials::CliquePotential;
 use crate::error::MrfError;
 
 pub struct Missing;
 pub struct Provided;
 
-pub struct MrfBuilder<S, N, U, HasState, HasNeighborhood, HasPairwise> {
-    state_space: Option<S>,
-    neighborhood: Option<N>,
-    unary: U,
-    pairwise: CompositePairwise<S>,
-    _marker: PhantomData<(HasState, HasNeighborhood, HasPairwise)>
-}
+pub struct MrfBuilderInit;
 
-impl<S, N, U, HasState, HasNeighborhood, HasPairwise> MrfBuilder<S, N, U, HasState, HasNeighborhood, HasPairwise> {
-    pub fn unary<NewU>(self, u: NewU) -> MrfBuilder<S, N, NewU, HasState, HasNeighborhood, HasPairwise> {
+impl MrfBuilderInit {
+    pub fn new() -> Self { MrfBuilderInit }
+
+    pub fn graph<L: Label>(self, g: Graph<L>) -> MrfBuilder<L, Provided, Missing> {
         MrfBuilder {
-            state_space: self.state_space,
-            neighborhood: self.neighborhood,
-            unary: u,
-            pairwise: self.pairwise,
-            _marker: PhantomData,
-        }
-    }
-}
-impl<S, N, U, HasNeighborhood, HasPairwise,> MrfBuilder<S, N, U, Missing, HasNeighborhood, HasPairwise> {
-    pub fn state_space<NewS: StateSpace>(self, s: NewS) -> MrfBuilder<NewS, N, U, Provided, HasNeighborhood, HasPairwise> {
-        MrfBuilder {
-            state_space: Some(s),
-            neighborhood: self.neighborhood,
-            unary: self.unary,
-            pairwise: CompositePairwise::default(),
+            graph: Some(g),
+            potentials: Vec::new(),
             _marker: PhantomData,
         }
     }
 }
 
-impl<S, N, U, HasState, HasPairwise,> MrfBuilder<S, N, U, HasState, Missing, HasPairwise> {
-    pub fn neighborhood<NewN: Neighborhood>(self, n: NewN) -> MrfBuilder<S, NewN, U, HasState, Provided, HasPairwise> {
+pub struct MrfBuilder<L, HasGraph, HasPotentials> {
+    graph: Option<Graph<L>>,
+    potentials: Vec<Box<dyn CliquePotential<L>>>,
+    _marker: PhantomData<(L, HasGraph, HasPotentials)>,
+}
+
+impl MrfBuilder<(), Missing, Missing> {
+    pub fn new() -> Self {
         MrfBuilder {
-            state_space: self.state_space,
-            neighborhood: Some(n),
-            unary: self.unary,
-            pairwise: self.pairwise,
+            graph: None,
+            potentials: Vec::new(),
             _marker: PhantomData,
         }
     }
 }
 
-impl<S: StateSpace, N, U, HasNeighborhood> MrfBuilder<S, N, U, Provided, HasNeighborhood, Missing> {
-    pub fn pairwise(self, p: impl PairwisePotential<S> + 'static) -> MrfBuilder<S, N, U, Provided, HasNeighborhood, Provided> {
+impl<L: Label, HasPotentials> MrfBuilder<L, Missing, HasPotentials> {
+    pub fn graph(self, g: Graph<L>) -> MrfBuilder<L, Provided, HasPotentials> {
         MrfBuilder {
-            state_space: self.state_space,
-            neighborhood: self.neighborhood,
-            unary: self.unary,
-            pairwise: self.pairwise.with(p),
-            _marker: PhantomData,
-        }
-    }
-}
-impl<S: StateSpace, N, U, HasNeighborhood> MrfBuilder<S, N, U, Provided, HasNeighborhood, Provided> {
-    pub fn pairwise(self, p: impl PairwisePotential<S> + 'static) -> MrfBuilder<S, N, U, Provided, HasNeighborhood, Provided> {
-        MrfBuilder {
-            state_space: self.state_space,
-            neighborhood: self.neighborhood,
-            unary: self.unary,
-            pairwise: self.pairwise.with(p),
+            graph: Some(g),
+            potentials: self.potentials,
             _marker: PhantomData,
         }
     }
 }
 
-impl<S, N, U> MrfBuilder<S, N, U, Provided, Provided, Provided>
-where
-    S: StateSpace,
-    N: Neighborhood,
-    U: UnaryPotential<S>,
-{
-    pub fn validate(&self) -> Result<(), MrfError> {
-        self.pairwise.validate()?;
-        self.unary.validate(self.pairwise.shape())?;
-        Ok(())
+// first potential transitions Missing -> Provided
+impl<L: Label> MrfBuilder<L, Provided, Missing> {
+    pub fn potential(self, p: impl CliquePotential<L> + 'static) 
+        -> MrfBuilder<L, Provided, Provided> 
+    {
+        let mut potentials = self.potentials;
+        potentials.push(Box::new(p));
+        MrfBuilder {
+            graph: self.graph,
+            potentials,
+            _marker: PhantomData,
+        }
     }
-    pub fn build(self) -> Result<MRF<S, N, U>, MrfError> {
-        self.validate()?;
-        
+}
+
+// additional potentials stay Provided
+impl<L: Label> MrfBuilder<L, Provided, Provided> {
+    pub fn potential(self, p: impl CliquePotential<L> + 'static) 
+        -> MrfBuilder<L, Provided, Provided> 
+    {
+        let mut potentials = self.potentials;
+        potentials.push(Box::new(p));
+        MrfBuilder {
+            graph: self.graph,
+            potentials,
+            _marker: PhantomData,
+        }
+    }
+}
+
+// build requires all three
+impl<L: Label> MrfBuilder<L, Provided, Provided> {
+    pub fn build(self) -> Result<MRF<L>, MrfError> {
         Ok(MRF {
-            state_space: self.state_space.unwrap(),
-            neighborhood: self.neighborhood.unwrap(),
-            unary: self.unary,
-            pairwise: self.pairwise,
+            graph: self.graph.unwrap(),
+            potentials: self.potentials,
         })
     }
 }
 
-pub struct MRF<S, N, U> {
-    state_space: S,
-    neighborhood: N,
-    unary: U,
-    pairwise: CompositePairwise<S>,
-    // TODO!: Add Adjacency so we can generalize to a Graph instead of a Grid
+pub struct MRF<L> {
+    graph: Graph<L>,
+    potentials: Vec<Box<dyn CliquePotential<L>>>,
 }
+ 
+pub type SweepCallback<L> = Box<dyn FnMut(usize, &[L])>;
 
-impl MRF<(), (), NoUnary> {
-    pub fn builder() -> MrfBuilder<(), (), NoUnary, Missing, Missing, Missing> {
-        MrfBuilder {
-            state_space: None,
-            neighborhood: None,
-            unary: NoUnary{},
-            pairwise: CompositePairwise::default(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-pub type SweepCallback<S> = Box<dyn FnMut(usize, &[<S as StateSpace>::State])>;
-
-pub struct GenerateOptions<S: StateSpace> {
-    pub init: Option<Vec<S::State>>,
+pub struct GenerateOptions<L: Label> {
+    pub init: Option<Vec<L>>,
     pub seed: Option<u64>,
-    pub on_sweep: Option<SweepCallback<S>>
+    pub on_sweep: Option<SweepCallback<L>>
 }
 
-impl<S, N, U> MRF<S, N, U> 
-where
-    S: StateSpace,
-    N: Neighborhood,
-    U: UnaryPotential<S>,
-{
-    pub fn random_init(&self, rng: &mut impl Rng) -> Vec<S::State> {
-        let states = self.state_space.states();
-        (0..self.neighborhood.num_nodes())
-            .map(|_| states[rng.random_range(0..states.len())].clone())
-            .collect()
+impl<L: Label> MRF<L> {
+    pub fn builder() -> MrfBuilderInit {
+        MrfBuilderInit
+    }
+    pub fn graph_mut(&mut self) -> &mut Graph<L> {
+        &mut self.graph
+    }
+    pub fn graph(&self) -> &Graph<L> {
+        &self.graph
+    }
+    pub fn potentials(&self) -> &[Box<dyn CliquePotential<L>>] { 
+        &self.potentials 
     }
 
-    pub fn generate<A: Annealer, R: RngExt>(
-        &self,
-        sampler: &GibbsSampler<A>,
-        mut opts: GenerateOptions<S>,
-    ) -> Result<Vec<S::State>, MrfError> {
-        let mut rng = match opts.seed {
-            Some(s) => StdRng::seed_from_u64(s),
-            None => StdRng::from_rng(&mut rand::rng()),
-        };
-        let mut field = match opts.init {
-            Some(f) => {
-                if f.len() != self.neighborhood.num_nodes() {
-                    return Err(MrfError::DimensionMismatch {
-                        expected: self.neighborhood.num_nodes(),
-                        got: f.len(),
-                    });
-                }
-                f
-            }
-            None => self.random_init(&mut rng),
-        };
-        if let Some(cb) = &mut opts.on_sweep { cb(0, &field); }
-        for i in 0..sampler.sweeps() {
-            let temp = sampler.annealer().temperature(i);
-            sampler.sweep(temp, &self.state_space, &self.neighborhood, &self.unary, &self.pairwise, &mut field, &mut rng);
-            if let Some(cb) = &mut opts.on_sweep { cb(i + 1, &field); }
-        }
-        Ok(field)
+    pub fn num_nodes(&self) -> usize { 
+        self.graph.num_nodes() 
     }
-    pub fn state_space(&self) -> &S { &self.state_space }
-    pub fn neighborhood(&self) -> &N { &self.neighborhood }
-    pub fn unary(&self) -> &U { &self.unary }
-    pub fn pairwise(&self) -> &CompositePairwise<S> { &self.pairwise }
+
+    /// Total energy of the current configuration
+    pub fn energy(&self) -> f64 {
+        let mut total = 0.0;
+        for p in &self.potentials {
+            let order = p.order();
+            for clique in self.graph.cliques_of_order(order) {
+                let states: Vec<L> = clique.members().iter()
+                    .map(|&i| self.graph.get_node(i).state().clone())
+                    .collect();
+                total += p.score(&states);
+            }
+        }
+        total
+    }
+
+    /// Energy contribution from cliques involving a specific node (with optional testing of different label)
+    fn node_energy_inner(&self, node: usize, override_state: Option<&L>) -> f64 {
+        let mut total = 0.0;
+        for p in &self.potentials {
+            self.graph.for_cliques_containing(node, Some(p.order()), |clique| {
+                let states: Vec<L> = clique.members().iter()
+                    .map(|&i| {
+                        if i == node { if let Some(s) = override_state { return s.clone(); } }
+                        self.graph.get_node(i).state().clone()
+                    })
+                    .collect();
+                total += p.score(&states);
+            });
+        }
+        total
+    }
+    
+    /// Current energy of given node
+    pub fn node_energy(&self, node: usize) -> f64 {
+        self.node_energy_inner(node, None)
+    }
+    
+    /// Used to assess energy of new Label
+    pub fn node_energy_with(&self, node: usize, candidate: &L) -> f64 {
+        self.node_energy_inner(node, Some(candidate))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{Grid2D, Four};
-    use crate::state::DiscreteLabels;
-    use crate::potentials::{UniformUnary, MatrixPairwise};
+    use crate::graph::Graph;
+    use crate::potentials::TablePotential;
 
-    fn test_labels() -> DiscreteLabels {
-        DiscreteLabels::new(3)
+    const EPSILON: f64 = 1e-10;
+
+    fn test_graph() -> Graph<usize> {
+        let mut g = Graph::new(16);
+        for r in 0..4 {
+            for c in 0..4 {
+                let i = r * 4 + c;
+                if c + 1 < 4 { g.add_edge(i, i + 1); }
+                if r + 1 < 4 { g.add_edge(i, i + 4); }
+            }
+        }
+        g.detect_cliques();
+        g
     }
 
-    fn test_grid() -> Grid2D<()> {
-        Grid2D::new(4, 4, Four)
-    }
-
-    fn test_pairwise() -> MatrixPairwise {
-        MatrixPairwise::new(&[
+    fn test_pairwise() -> TablePotential {
+        TablePotential::pairwise(&[
             vec![1.0, 0.5, 0.1],
             vec![0.5, 1.0, 0.3],
             vec![0.1, 0.3, 1.0],
         ]).unwrap()
     }
 
-    fn test_unary() -> UniformUnary {
-        UniformUnary::new(&[1.0, 1.0, 1.0])
+    // log score for a raw weight
+    fn log_score(w: f64) -> f64 {
+        (w + EPSILON).ln()
     }
 
-    // --- Build succeeds with all required fields ---
+    // --- Builder: required fields ---
 
     #[test]
-    fn build_with_all_required() {
-        let _mrf = MRF::builder()
-            .state_space(test_labels())
-            .neighborhood(test_grid())
-            .pairwise(test_pairwise())
+    fn build_with_graph_and_potential() {
+        let mrf = MRF::<usize>::builder()
+            .graph(test_graph())
+            .potential(test_pairwise())
             .build();
+        assert!(mrf.is_ok());
     }
 
-    // --- Order doesn't matter ---
+    // --- Builder: multiple potentials ---
 
     #[test]
-    fn build_order_state_pairwise_neighborhood() {
-        let _mrf = MRF::builder()
-            .state_space(test_labels())
-            .pairwise(test_pairwise())
-            .neighborhood(test_grid())
+    fn build_with_multiple_potentials() {
+        let mrf = MRF::<usize>::builder()
+            .graph(test_graph())
+            .potential(test_pairwise())
+            .potential(test_pairwise())
             .build();
+        assert!(mrf.is_ok());
+        let mrf = mrf.unwrap();
+        assert_eq!(mrf.potentials().len(), 2);
     }
 
+    // --- Accessors ---
+
     #[test]
-    fn build_order_neighborhood_state_pairwise() {
-        let _mrf = MRF::builder()
-            .neighborhood(test_grid())
-            .state_space(test_labels())
-            .pairwise(test_pairwise())
-            .build();
+    fn num_nodes_matches_graph() {
+        let mrf = MRF::<usize>::builder()
+            .graph(test_graph())
+            .potential(test_pairwise())
+            .build()
+            .unwrap();
+        assert_eq!(mrf.num_nodes(), 16);
     }
 
-    // --- Optional unary ---
+    // --- Energy ---
 
     #[test]
-    fn build_without_unary_defaults_to_no_unary() {
-        let _mrf = MRF::builder()
-            .state_space(test_labels())
-            .neighborhood(test_grid())
-            .pairwise(test_pairwise())
-            .build();
-    }
-
-    #[test]
-    fn build_with_unary() {
-        let _mrf = MRF::builder()
-            .state_space(test_labels())
-            .neighborhood(test_grid())
-            .unary(test_unary())
-            .pairwise(test_pairwise())
-            .build();
-    }
-
-    #[test]
-    fn unary_at_start() {
-        let _mrf = MRF::builder()
-            .unary(test_unary())
-            .state_space(test_labels())
-            .neighborhood(test_grid())
-            .pairwise(test_pairwise())
-            .build();
+    fn uniform_state_energy_is_consistent() {
+        let mut g = test_graph();
+        for i in 0..g.num_nodes() {
+            g.get_node_mut(i).set_state(0);
+        }
+        let mrf = MRF::<usize>::builder()
+            .graph(g)
+            .potential(test_pairwise())
+            .build()
+            .unwrap();
+        let e = mrf.energy();
+        // All pairs have same labels -> each edge scores log(1.0 + eps)
+        // 4x4 grid, 4-connected: 24 edges
+        let expected = 24.0 * log_score(1.0);
+        assert!((e - expected).abs() < 1e-9);
     }
 
     #[test]
-    fn unary_at_end() {
-        let _mrf = MRF::builder()
-            .state_space(test_labels())
-            .neighborhood(test_grid())
-            .pairwise(test_pairwise())
-            .unary(test_unary())
-            .build();
+    fn node_energy_only_counts_local_cliques() {
+        let mut g = test_graph();
+        for i in 0..g.num_nodes() {
+            g.get_node_mut(i).set_state(0);
+        }
+        let mrf = MRF::<usize>::builder()
+            .graph(g)
+            .potential(test_pairwise())
+            .build()
+            .unwrap();
+
+        // Corner node (0) has 2 neighbors -> 2 pairwise cliques
+        let e = mrf.node_energy(0);
+        assert!((e - 2.0 * log_score(1.0)).abs() < 1e-9);
+
+        // Interior node (5) has 4 neighbors -> 4 pairwise cliques
+        let e = mrf.node_energy(5);
+        assert!((e - 4.0 * log_score(1.0)).abs() < 1e-9);
     }
-    
+
     #[test]
-    fn multiple_pairwise() {
-        let _mrf = MRF::builder()
-            .state_space(test_labels())
-            .neighborhood(test_grid())
-            .pairwise(test_pairwise())
-            .unary(test_unary())
-            .pairwise(test_pairwise())
-            .build();
+    fn energy_changes_with_label() {
+        let mut g = test_graph();
+        for i in 0..g.num_nodes() {
+            g.get_node_mut(i).set_state(0);
+        }
+        g.get_node_mut(0).set_state(1);
+
+        let mrf = MRF::<usize>::builder()
+            .graph(g)
+            .potential(test_pairwise())
+            .build()
+            .unwrap();
+
+        // Node 0 has label 1, its 2 neighbors have label 0
+        // score(1, 0) = log(0.5 + eps) per edge
+        let e = mrf.node_energy(0);
+        assert!((e - 2.0 * log_score(0.5)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn total_energy_is_sum_over_all_cliques() {
+        let mut g = test_graph();
+        for i in 0..g.num_nodes() {
+            g.get_node_mut(i).set_state(0);
+        }
+        g.get_node_mut(0).set_state(1);
+
+        let mrf = MRF::<usize>::builder()
+            .graph(g)
+            .potential(test_pairwise())
+            .build()
+            .unwrap();
+
+        // 24 edges total. 2 touch node 0 (label 1-0), 22 are 0-0
+        let expected = 2.0 * log_score(0.5) + 22.0 * log_score(1.0);
+        assert!((mrf.energy() - expected).abs() < 1e-9);
+    }
+
+    // --- node_energy_with ---
+
+    #[test]
+    fn node_energy_with_matches_after_set() {
+        let mut g = test_graph();
+        for i in 0..g.num_nodes() {
+            g.get_node_mut(i).set_state(0);
+        }
+        let mrf = MRF::<usize>::builder()
+            .graph(g)
+            .potential(test_pairwise())
+            .build()
+            .unwrap();
+
+        // Hypothetical: what if node 0 were label 2?
+        let hypothetical = mrf.node_energy_with(0, &2);
+        // score(2, 0) = log(0.1 + eps) per edge, 2 neighbors
+        assert!((hypothetical - 2.0 * log_score(0.1)).abs() < 1e-9);
+
+        // Graph is unchanged — node 0 still label 0
+        let actual = mrf.node_energy(0);
+        assert!((actual - 2.0 * log_score(1.0)).abs() < 1e-9);
+    }
+
+    // --- Graph clique detection sanity ---
+
+    #[test]
+    fn grid_cliques_are_all_pairwise() {
+        let g = test_graph();
+        for c in g.maximal_cliques() {
+            assert_eq!(c.len(), 2);
+        }
+        assert_eq!(g.maximal_cliques().len(), 24);
     }
 }

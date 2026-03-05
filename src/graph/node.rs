@@ -24,4 +24,10 @@ impl<T> Node<T> {
     pub fn neighbors(&self) -> &[usize] {
         &self.neighbors
     }
+    pub fn state(&self) -> &T {
+        &self.state
+    }
+    pub fn set_state(&mut self, state: T) {
+        self.state = state;
+    }
 }
