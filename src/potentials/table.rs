@@ -1,4 +1,3 @@
-use crate::state::Label;
 use crate::potentials::CliquePotential;
 use crate::error::MrfError;
 

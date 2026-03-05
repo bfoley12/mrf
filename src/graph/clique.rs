@@ -14,6 +14,10 @@ impl Clique {
         self.members.len()
     }
     
+    pub fn is_empty(&self) -> bool {
+        self.members.len() == 0
+    }
+    
     pub fn members(&self) -> &[usize] {
         &self.members
     }

@@ -10,9 +10,11 @@ pub struct Provided;
 
 pub struct MrfBuilderInit;
 
-impl MrfBuilderInit {
-    pub fn new() -> Self { MrfBuilderInit }
+impl Default for MrfBuilderInit {
+    fn default() -> Self { MrfBuilderInit }
+}
 
+impl MrfBuilderInit {
     pub fn graph<L: Label>(self, g: Graph<L>) -> MrfBuilder<L, Provided, Missing> {
         MrfBuilder {
             graph: Some(g),
@@ -28,8 +30,8 @@ pub struct MrfBuilder<L, HasGraph, HasPotentials> {
     _marker: PhantomData<(L, HasGraph, HasPotentials)>,
 }
 
-impl MrfBuilder<(), Missing, Missing> {
-    pub fn new() -> Self {
+impl Default for MrfBuilder<(), Missing, Missing> {
+    fn default() -> Self {
         MrfBuilder {
             graph: None,
             potentials: Vec::new(),
@@ -141,7 +143,7 @@ impl<L: Label> MRF<L> {
             self.graph.for_cliques_containing(node, Some(p.order()), |clique| {
                 let states: Vec<L> = clique.members().iter()
                     .map(|&i| {
-                        if i == node { if let Some(s) = override_state { return s.clone(); } }
+                        if let (true, Some(s)) = (i == node, override_state) { return s.clone(); }
                         self.graph.get_node(i).state().clone()
                     })
                     .collect();

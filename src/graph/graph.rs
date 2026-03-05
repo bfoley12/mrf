@@ -27,7 +27,7 @@ impl<T> Graph<T> {
 
     pub fn cliques_containing(&self, node: usize, order: Option<usize>) -> Vec<&Clique> {
         self.node_cliques[node].iter()
-            .filter(|(_, o)| order.map_or(true, |want| *o == want))
+            .filter(|(_, o)| order.is_none_or(|want| *o == want))
             .map(|(ci, _)| &self.maximal_cliques[*ci])
             .collect()
     }
@@ -38,7 +38,7 @@ impl<T> Graph<T> {
         mut f: impl FnMut(&Clique),
     ) {
         for &(ci, o) in &self.node_cliques[node] {
-            if order.map_or(true, |want| o == want) {
+            if order.is_none_or(|want| o == want) {
                 f(&self.maximal_cliques[ci]);
             }
         }

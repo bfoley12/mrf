@@ -1,19 +1,13 @@
 pub struct Node<T> {
-    index: usize,
-    observed: T,
     state: T,
     neighbors: Vec<usize>,
 }
 
 impl<T> Node<T> {
-    pub fn new(index: usize, observed: T, state: T, neighbors: Vec<usize>) -> Self {
-        Self { index, observed, state, neighbors }
+    pub fn new(state: T, neighbors: Vec<usize>) -> Self {
+        Self { state, neighbors }
     }
-    
-    //fn default(index: usize) -> Self {
-    //    Self { index, observed: 0, state: 0, neighbors: Vec::new()}
-    //}
-    // 
+
     pub fn add_edge(&mut self, index: usize) {
         match self.neighbors.binary_search(&index) {
             Ok(_) => {}

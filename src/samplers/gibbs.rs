@@ -8,16 +8,9 @@ use rand::{SeedableRng};
 use rand::seq::SliceRandom;
 use crate::samplers::{Proposal};
 
-pub type SweepCallback<L> = Box<dyn FnMut(usize, &MRF<L>)>;
-
+#[derive(Default)]
 pub struct RunOptions {
     pub seed: Option<u64>,
-}
-
-impl Default for RunOptions {
-    fn default() -> Self {
-        Self { seed: None }
-    }
 }
 
 pub struct GibbsSampler<A: Annealer> {
