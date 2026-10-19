@@ -73,6 +73,7 @@ fn main() {
     };
 
     sampler.run(&mut mrf, &proposal, opts).unwrap();
+    save_frame(&mrf, width, height, "frames/frame_n.png");
 
     println!("Done! Frames saved to frames/");
 }
