@@ -140,19 +140,26 @@ impl<L: Label> MRF<L> {
     fn node_energy_inner(&self, node: usize, override_state: Option<&L>) -> f64 {
         let mut total = 0.0;
         for p in &self.potentials {
-            self.graph.for_cliques_containing(node, Some(p.order()), |clique| {
-                let states: Vec<L> = clique.members().iter()
-                    .map(|&i| {
-                        if let (true, Some(s)) = (i == node, override_state) { return s.clone(); }
-                        self.graph.get_node(i).state().clone()
-                    })
-                    .collect();
-                total += p.score(&states);
-            });
+            let k = p.order();
+            // Every k-subset (of a maximal clique) that contains `node`, deduplicated.
+            let mut seen = std::collections::HashSet::<Vec<usize>>::new();
+            for mc in self.graph.cliques_containing(node, None) {
+                if mc.len() < k { continue; }
+                for sub in mc.subsets(k) {
+                    if !sub.contains(node) || !seen.insert(sub.members().to_vec()) { continue; }
+                    let states: Vec<L> = sub.members().iter()
+                        .map(|&i| match (i == node, override_state) {
+                            (true, Some(s)) => s.clone(),
+                            _ => self.graph.get_node(i).state().clone(),
+                        })
+                        .collect();
+                    total += p.score(&states);
+                }
+            }
         }
         total
     }
-    
+
     /// Current energy of given node
     pub fn node_energy(&self, node: usize) -> f64 {
         self.node_energy_inner(node, None)
@@ -193,9 +200,9 @@ mod tests {
         ]).unwrap()
     }
 
-    // log score for a raw weight
+    // energy for a raw weight
     fn log_score(w: f64) -> f64 {
-        (w + EPSILON).ln()
+        -(w + EPSILON).ln()
     }
 
     // --- Builder: required fields ---

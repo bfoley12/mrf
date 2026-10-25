@@ -24,8 +24,8 @@ fn save_frame(mrf: &MRF<usize>, width: usize, height: usize, path: &str) {
 }
 
 fn main() {
-    let width = 64;
-    let height = 64;
+    let width = 128;
+    let height = 128;
     let sweeps = 100;
     let num_labels = 4;
 
@@ -46,34 +46,47 @@ fn main() {
         graph.get_node_mut(i).set_state(rng.random_range(0..num_labels));
     }
 
+    // Weights: larger = more compatible. Labels form an "elevation" chain
+    // W - F - D - R: each label only tolerates its immediate neighbours, so
+    // regions nest like contour lines (water, then a grassy coast, then
+    // dirt, then stone peaks) instead of forming an arbitrary 2-way split.
     let pairwise = TablePotential::pairwise(&[
-        //   W     F     D     R
-        vec![0.6, 0.5, 0.05, 0.05],
-        vec![0.5, 0.6, 0.4,  0.05],
-        vec![0.05, 0.4, 0.6,  0.5],
-        vec![0.05, 0.05, 0.5,  0.6],
+        //    W     F     D     R
+        vec![1.0,  0.25, 0.01, 0.01],
+        vec![0.25, 1.0,  0.25, 0.01],
+        vec![0.01, 0.25, 1.0,  0.25],
+        vec![0.01, 0.01, 0.25, 1.0 ],
     ]).unwrap();
+
+    // Unary energies (lower = more likely). Middle labels have two friendly
+    // neighbours in the chain, so they win on entropy alone and the ends die
+    // out. These biases push back: lots of ocean, a few stone peaks.
+    let unary = TablePotential::unary(vec![-0.25, 0.0, 0.0, -0.4]);
 
     let mut mrf = MRF::<usize>::builder()
         .graph(graph)
         .potential(pairwise)
+        .potential(unary)
         .build()
         .unwrap();
 
-    let annealer = LinearAnnealer::new(5.0, 0.1, 0.25);
+    // Cool from disordered to just below the ordering transition. Below it the
+    // model coarsens: blobs merge until one phase wins (that's the correct
+    // equilibrium for a local pairwise MRF). "Continents" are a snapshot of
+    // that coarsening, so `sweeps` controls feature size more than quality.
+    let annealer = ExponentialAnnealer::new(3.0, 0.98, 1.2);
     let sampler = GibbsSampler::new(sweeps, annealer);
     let proposal = DiscreteProposal::new(num_labels);
 
     std::fs::create_dir_all("frames").unwrap();
 
-    save_frame(&mrf, width, height, "frames/frame_000.png");
+    let opts = RunOptions { seed: Some(42) };
 
-    let opts = RunOptions {
-        seed: Some(42),
-    };
+    sampler.run_with(&mut mrf, &proposal, opts, |sweep, m| {
+        if sweep % 10 == 0 || sweep == sweeps {
+            save_frame(m, width, height, &format!("frames/frame_{sweep:03}.png"));
+        }
+    }).unwrap();
 
-    sampler.run(&mut mrf, &proposal, opts).unwrap();
-    save_frame(&mrf, width, height, "frames/frame_n.png");
-
-    println!("Done! Frames saved to frames/");
+    println!("Done! Frames saved to frames/ (final energy {:.1})", mrf.energy());
 }

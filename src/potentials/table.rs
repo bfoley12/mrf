@@ -25,7 +25,8 @@ impl TablePotential {
     }
 
     /// Build a pairwise potential from a weight matrix.
-    /// Validates symmetry and non-negativity, stores as log scores.
+    /// Validates symmetry and non-negativity, stores energies E = -ln(w)
+    /// (larger weight = more compatible = lower energy).
     pub fn pairwise(weights: &[Vec<f64>]) -> Result<Self, MrfError> {
         let n = weights.len();
         if n == 0 {
@@ -50,7 +51,7 @@ impl TablePotential {
                 if j > i && (val - weights[j][i]).abs() > epsilon {
                     return Err(MrfError::AsymmetricMatrix { row: i, col: j });
                 }
-                let log_val = (val + epsilon).ln();
+                let log_val = -(val + epsilon).ln(); // energy: high weight -> low energy
                 scores[i * n + j] = log_val;
                 scores[j * n + i] = log_val;
             }
@@ -150,8 +151,8 @@ mod tests {
             vec![0.5, 1.0],
         ]).unwrap();
 
-        assert!((tp.score(&[0, 0]) - (1.0_f64 + EPSILON).ln()).abs() < 1e-12);
-        assert!((tp.score(&[0, 1]) - (0.5_f64 + EPSILON).ln()).abs() < 1e-12);
+        assert!((tp.score(&[0, 0]) + (1.0_f64 + EPSILON).ln()).abs() < 1e-12);
+        assert!((tp.score(&[0, 1]) + (0.5_f64 + EPSILON).ln()).abs() < 1e-12);
     }
 
     #[test]
@@ -169,7 +170,7 @@ mod tests {
             vec![1.0, 0.1],
             vec![0.1, 1.0],
         ]).unwrap();
-        assert!(tp.score(&[0, 0]) > tp.score(&[0, 1]));
+        assert!(tp.score(&[0, 0]) < tp.score(&[0, 1])); // agreement = lower energy
     }
 
     // --- Unary ---
