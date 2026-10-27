@@ -1,3 +1,6 @@
+/// A Clique is a group of indices that are considered neighbors
+/// field 'members' is a vec of flattened matrix indices of each 
+/// member of the Clique
 #[derive(Clone)]
 pub struct Clique {
     members: Vec<usize>,
@@ -5,7 +8,10 @@ pub struct Clique {
 
 impl Clique {
     pub fn new(mut members: Vec<usize>) -> Self {
+        // Sort improve later access (frequent)
         members.sort_unstable();
+        // Dedup to remove any erroneous duplicate members
+        // (a node can only join this clique once)
         members.dedup();
         Self { members }
     }
@@ -45,11 +51,13 @@ impl Clique {
 
     pub fn insert(&mut self, node: usize) {
         match self.members.binary_search(&node) {
-            Ok(_) => {}  // already present
+            // Nodes cannot join a clique twice
+            Ok(_) => {}
             Err(pos) => self.members.insert(pos, node),
         }
     }
     
+    /// Find all subsets of Cliques within this Clique, limited to Cliques of size 'size'
     pub fn subsets(&self, size: usize) -> Vec<Clique> {
             let members = self.members();
             let mut result = Vec::new();
@@ -57,6 +65,7 @@ impl Clique {
             result
         }
     
+    /// Find all combinatinations of size 'size' from 'members'
     fn combinations(
         members: &[usize],
         size: usize,
